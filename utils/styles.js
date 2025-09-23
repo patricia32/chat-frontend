@@ -17,6 +17,7 @@ export const colors = {
     gray800: '#696969ff',
     gray900: '#4d4c4cff',
 
+    purple100: '#b653fdff',
     purple400: '#a636f6ff',
     purple500: '#6605abff',
 

@@ -1,17 +1,51 @@
 import { View, Text, StyleSheet, Image, Pressable } from "react-native";
-import { colors } from "../utils/styles";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useState, useEffect, useCallback } from "react";
 
-function ChatPreview({chatPreviewData}){
+import { getLastMessageForChat, getUserById } from "../database/firebaseService";
+import { colors } from "../utils/styles";
+
+function ChatPreview({currentUserId, conversationData}){
     
+    const [lastMessageContent, setLastMessageContent] = useState("");
+    const [loading, setLoading] = useState(true); 
+
     const navigation = useNavigation();
 
     function handlePressedChat(){
-        navigation.navigate("ChatScreen",{
-            userName: chatPreviewData.userName,
+        navigation.navigate('ChatScreen',{
+            currentUserId: currentUserId,
+            chatId: conversationData.id,
+            secondUserName: secondUserData.name,
+            secondUserAvatar: secondUserData.avatar
         })
     }
+    const [secondUserData, setSecondUserData] = useState(null);
 
+    useFocusEffect(
+    useCallback(() => {
+        setLoading(true)
+        const fetchData = async () => {
+            try {
+                const userData = await getUserById(
+                    conversationData.user1 === currentUserId
+                        ? conversationData.user2
+                        : conversationData.user1 
+                    );
+                setSecondUserData(userData);
+
+                const lastMessageContentData = await getLastMessageForChat(conversationData.id);
+                setLastMessageContent(lastMessageContentData);
+                    
+                setLoading(false);
+            } catch (error) {
+                console.error("Error loading data:", error);
+            }
+        };
+        fetchData();
+    }, [])
+)
+    if(loading === false)
     return(
         <Pressable 
             onPress={handlePressedChat}
@@ -22,9 +56,9 @@ function ChatPreview({chatPreviewData}){
              <View>
                 <Image
                     source={
-                        chatPreviewData.userPhoto 
-                        ?
-                            { uri: chatPreviewData.userPhoto }
+                        secondUserData.avatar
+                               ?
+                            { uri: secondUserData.avatar }
                         :
                             require('../assets/profilePicture.png')
                     }
@@ -33,18 +67,18 @@ function ChatPreview({chatPreviewData}){
             </View>
 
             <View style={styles.contentContainer}>
-                <Text style={chatPreviewData.read === false ? styles.nameTextUnread : styles.nameTextRead}>
-                    {chatPreviewData.userName}
+                <Text style={conversationData.read === false ? styles.nameTextUnread : styles.nameTextRead}>
+                    {secondUserData.name}
                 </Text>
            
-                <Text style={chatPreviewData.read === false ? styles.messageTextUnread : styles.messageTextRead}>
-                    {chatPreviewData.chatLastMessage}
+                <Text style={conversationData.read === false ? styles.messageTextUnread : styles.messageTextRead}>
+                    {lastMessageContent}
                 </Text>
             </View>
 
             <View>
-                <Text style={chatPreviewData.read === false ? styles.dateUnread : styles.dateRead}>
-                    {chatPreviewData.date}
+                <Text style={conversationData.read === false ? styles.dateUnread : styles.dateRead}>
+                    {conversationData.date}
                 </Text>
             </View>
         </Pressable>
@@ -86,13 +120,14 @@ const styles = StyleSheet.create({
         marginTop: 5,
     },
     nameTextRead:{
-        fontWeight: 'bold',
+        fontWeight: 600,
         fontSize: 18,
         color: colors.gray900,
         marginBottom: 2
     },
     messageTextRead: {
         fontSize: 16,
+        fontWeight: 300,
         color: colors.gray800,
     },
     dateRead:{
@@ -101,18 +136,18 @@ const styles = StyleSheet.create({
     },
 
     nameTextUnread:{
-        fontWeight: 'bold',
+        fontWeight: 600,
         fontSize: 18,
         color: colors.purple500,
         marginBottom: 2
     },
     messageTextUnread: {
-        // fontWeight: 'bold',
+        fontWeight: 300,
         fontSize: 16,
         color: colors.purple500,
     },
     dateUnread:{
-        fontWeight: 'bold',
+        fontWeight: 600,
         fontSize: 12,
         color: colors.purple500,
     }

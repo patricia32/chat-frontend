@@ -1,43 +1,47 @@
-import { View, StyleSheet, FlatList } from "react-native";
+import { StyleSheet, FlatList } from "react-native";
+import { useState, useLayoutEffect } from "react";
+
+import LoadingScreen from "../screens/LoadingScreen";
 import ChatPreview from "./ChatPreview";
-// import { FlatList } from "react-native/types_generated/index";
 
-function ChatsList(){
+import { getUserById, getConversationsForUser } from "../database/firebaseService";
 
-    const chats =[
-        {
-            chat_id: 1,
-            chatLastMessage: 'Hello!',
-            userName: 'John',
-            userPhoto: undefined,
-            date: 'Today',
-            read: false,
-        },
-        {
-            chat_id: 2,
-            chatLastMessage: 'Have a nice day!',
-            userName: 'Mary',
-            userPhoto: undefined,
-            date: 'Thursday',
-            read: true
-        },
-        {
-            chat_id: 3,
-            chatLastMessage: 'Hi there. What\'s up?',
-            userName: 'Jessica',
-            userPhoto: undefined,
-            date: 'Wednesday',
-            read: false
-        }
-           
-    ]
+function ChatsList({currentUserId}){
 
+    const [user, setUser] = useState(null);
+    const [loading, setLoading] = useState(true); 
+    const [conversations, setConversations] = useState([]);
+    
+    useLayoutEffect(() => {
+        const fetchData = async () => {
+            try {
+                const userData = await getUserById(currentUserId);
+                setUser(userData);
+
+                const conversationsFetched = await getConversationsForUser(currentUserId);
+                setConversations(conversationsFetched);
+
+                setLoading(false);
+            } catch (error) {
+                console.error("Error loading data:", error);
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+        }, []);    
+
+    
+    if(loading)
+        return (<LoadingScreen/>)
+    
     return(
+
         <FlatList
             style={styles.mainContainer}
-            data={chats}
-            renderItem={(itemData) => {
-                return <ChatPreview key={itemData.item.chat_id} chatPreviewData={itemData.item}/>
+            data={conversations}
+            renderItem={(conversationData) => {
+                return <ChatPreview currentUserId={currentUserId} conversationData={conversationData.item}/>
             }}
         />
     )
