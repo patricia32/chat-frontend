@@ -1,8 +1,9 @@
 import { View, Text, StyleSheet, Image, Pressable } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 
-import { getLastMessageForChat, getUserById } from "../database/firebaseService";
+import { getLastMessageAndDateForChat, getUserById } from "../database/firebaseService";
+import { formatChatTimestamp } from "../utils/DataProcessing";
 import { colors } from "../utils/styles";
 
 function ChatPreview({currentUserId, conversationData}){
@@ -11,7 +12,6 @@ function ChatPreview({currentUserId, conversationData}){
     const [loading, setLoading] = useState(true); 
 
     const navigation = useNavigation();
-
     function handlePressedChat(){
         navigation.navigate('ChatScreen',{
             currentUserId: currentUserId,
@@ -34,9 +34,8 @@ function ChatPreview({currentUserId, conversationData}){
                     );
                 setSecondUserData(userData);
 
-                const lastMessageContentData = await getLastMessageForChat(conversationData.id);
-                setLastMessageContent(lastMessageContentData);
-                    
+                const lastMessage = await getLastMessageAndDateForChat(conversationData.id);
+                setLastMessageContent(lastMessage.text);
                 setLoading(false);
             } catch (error) {
                 console.error("Error loading data:", error);
@@ -56,11 +55,11 @@ function ChatPreview({currentUserId, conversationData}){
              <View>
                 <Image
                     source={
-                        secondUserData.avatar
-                               ?
-                            { uri: secondUserData.avatar }
-                        :
+                        secondUserData.avatar === 'defaultImage'
+                            ?
                             require('../assets/profilePicture.png')
+                            :
+                            { uri: secondUserData.avatar }
                     }
                     style={styles.userPhoto}
                 />
@@ -78,7 +77,7 @@ function ChatPreview({currentUserId, conversationData}){
 
             <View>
                 <Text style={conversationData.read === false ? styles.dateUnread : styles.dateRead}>
-                    {conversationData.date}
+                    { conversationData.date ? null : formatChatTimestamp(conversationData.date.toDate())}
                 </Text>
             </View>
         </Pressable>

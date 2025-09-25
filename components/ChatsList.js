@@ -1,5 +1,7 @@
 import { StyleSheet, FlatList } from "react-native";
-import { useState, useLayoutEffect } from "react";
+
+import { useFocusEffect } from "@react-navigation/native";
+import { useState, useCallback } from "react";
 
 import LoadingScreen from "../screens/LoadingScreen";
 import ChatPreview from "./ChatPreview";
@@ -12,34 +14,34 @@ function ChatsList({currentUserId}){
     const [loading, setLoading] = useState(true); 
     const [conversations, setConversations] = useState([]);
     
-    useLayoutEffect(() => {
-        const fetchData = async () => {
-            try {
-                const userData = await getUserById(currentUserId);
-                setUser(userData);
+    useFocusEffect(
+        useCallback(() => {
+            const fetchData = async () => {
+                setLoading(true)
+                try {
+                    const userData = await getUserById(currentUserId);
+                    setUser(userData);
 
-                const conversationsFetched = await getConversationsForUser(currentUserId);
-                setConversations(conversationsFetched);
+                    const conversationsFetched = await getConversationsForUser(currentUserId);
+                    setConversations(conversationsFetched);
 
-                setLoading(false);
-            } catch (error) {
-                console.error("Error loading data:", error);
-                setLoading(false);
-            }
-        };
-
+                    setLoading(false);
+                } catch (error) {
+                    console.error("Error loading data:", error);
+                    setLoading(false);
+                }
+            };
         fetchData();
-        }, []);    
-
+        }, [])
+    );
     
     if(loading)
         return (<LoadingScreen/>)
     
     return(
-
         <FlatList
             style={styles.mainContainer}
-            data={conversations}
+            data={conversations.sort((a, b) => b.date - a.date)}
             renderItem={(conversationData) => {
                 return <ChatPreview currentUserId={currentUserId} conversationData={conversationData.item}/>
             }}

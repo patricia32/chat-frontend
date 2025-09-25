@@ -1,4 +1,4 @@
-import { doc, getDoc, getDocs, setDoc, collection, query, where, orderBy, limit } from "firebase/firestore";
+import { doc, getDoc, getDocs, setDoc, collection, query, where, orderBy, limit, updateDoc, deleteDoc } from "firebase/firestore";
 import { db } from "./firebaseConfig";
 
 export const getUserById = async (userId) => {
@@ -47,30 +47,38 @@ export const getUserById = async (userId) => {
     }
 };
 
-export const getLastMessageForChat = async (chatId) => {
+export const getLastMessageAndDateForChat = async (chatId) => {
   try {
     const messagesRef = collection(db, "message");
     const q = query(messagesRef, where("chat_id", "==", chatId));
     const snapshot = await getDocs(q);
 
-    if (snapshot.empty) return "";
+    if (snapshot.empty) return null;
 
-    const messages = snapshot.docs.map(doc => {
+    const messages = snapshot.docs.map((doc) => {
       const data = doc.data();
       return {
         ...data,
-        createdAt: data.createdAt?.toDate?.() || new Date()
+        createdAt: data.createdAt?.toDate?.() || null,
       };
     });
 
-    messages.sort((a, b) => b.createdAt - a.createdAt);
+    const validMessages = messages.filter((msg) => msg.createdAt !== null);
 
-    return messages[0].text || "";
+    if (validMessages.length === 0) return null;
+
+    validMessages.sort((a, b) => b.createdAt - a.createdAt);
+
+    return {
+      createdAt: validMessages[0].createdAt,
+      text: validMessages[0].text || "",
+    };
   } catch (error) {
-      console.error("Error getting last message:", error);
-      return "";
+    console.error("Error getting last message:", error);
+    return null;
   }
 };
+
 
 export const getMessagesForChat = async (chatId) => {
     try {
@@ -99,6 +107,40 @@ export const sendMessage = async (newMessage) => {
 
   } catch (error) {
     console.error("Error sending message:", error);
+    return false;
+  }
+};
+
+export const updateChatTimestamp = async (chatId, timestamp) => {
+  try {
+    const chatRef = doc(db, "chat", chatId);
+    await updateDoc(chatRef, {
+      date: timestamp
+    });
+    return true;
+  } catch (error) {
+    console.error("Error updating chat timestamp:", error);
+    return false;
+  }
+};
+export const deleteMessageById = async (messageId, chatId) => {
+  try {
+    const messageRef = doc(db, "message", messageId);
+    await deleteDoc(messageRef);
+
+    const lastMessage = await getLastMessageAndDateForChat(chatId);
+
+    if (!lastMessage || !lastMessage.createdAt) {
+      await updateChatTimestamp(chatId, null);
+      return true;
+    }
+
+    const lastMessageDate = new Date(lastMessage.createdAt);
+    await updateChatTimestamp(chatId, lastMessageDate);
+
+    return true;
+  } catch (error) {
+    console.error("Error updating chat timestamp:", error);
     return false;
   }
 };

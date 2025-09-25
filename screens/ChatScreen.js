@@ -1,12 +1,15 @@
+import { ActionSheetProvider } from '@expo/react-native-action-sheet'; // or 'react-native-action-sheet'
 import { View, Text, TextInput , Platform, StyleSheet, Pressable} from 'react-native';
 import { GiftedChat, Bubble, Avatar } from 'react-native-gifted-chat';
-import { useState, useLayoutEffect } from 'react';
+import { useState, useLayoutEffect, useEffect } from 'react';
 import { KeyboardAvoidingView } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 
-import { getMessagesForChat, sendMessage } from '../database/firebaseService';
+import { deleteMessageById, getMessagesForChat, sendMessage, updateChatTimestamp } from '../database/firebaseService';
+import { colors} from '../utils/styles'
+
+import MessageModal from '../components/MessageModal';
 import LoadingScreen from './LoadingScreen';
-import {colors} from '../utils/styles'
 
 export default function ChatScreen({route, navigation}) {
   
@@ -18,7 +21,10 @@ export default function ChatScreen({route, navigation}) {
     const [messages, setMessages] = useState([]);
     const [loading, setLoading] = useState(true);
     const [sentToggle, setSentToggle] = useState(false);
-    
+
+    const [pressedMessage, setPressedMessage] = useState(null);
+    const [showModal, setShowModal] = useState(false);
+
     const [inputText, setInputText] = useState('');
 
     useLayoutEffect(() => {
@@ -38,8 +44,7 @@ export default function ChatScreen({route, navigation}) {
             }
         };
         fetchData();
-    }, [navigation, sentToggle]);
-
+    }, [navigation, sentToggle, showModal]);
 
         // use Gifted Chat message structure
     const giftedMessages = messages.map(msg => ({
@@ -48,7 +53,7 @@ export default function ChatScreen({route, navigation}) {
         createdAt: msg.createdAt?.toDate?.() || new Date(), 
         user: {
             _id: msg.sender_id,
-            name: msg.sender_id === currentUserId ? "You" : "Other User",
+            name: msg.sender_id === currentUserId ? "You" : secondUserName,
             avatar: msg.sender_id === currentUserId 
                 ? null 
                 : secondUserAvatar
@@ -56,30 +61,45 @@ export default function ChatScreen({route, navigation}) {
     }));
 
   const handleSend = async () => {
+    const newDate = new Date();
     if (inputText.trim().length > 0) {
       const newMessage = {
         _id: Math.random().toString(36).substring(7), // Unique id
         chat_id: chatId,
         text: inputText.trim(),
-        createdAt: new Date(),
+        createdAt: newDate,
         sender_id: currentUserId
       };
 
       setInputText("");
       await sendMessage(newMessage);
+      await updateChatTimestamp(chatId, newDate)
       setSentToggle(!sentToggle)
     }
   };
+
+  const handleLongPressMessage = (context, message) => {
+    setPressedMessage(message)
+    setShowModal(true);
+  }
+
+  const handleDeleteMessage = (messageId) => {
+    deleteMessageById(messageId, chatId)
+    setShowModal(false);
+  }
+  useEffect(() => {
+    }, [pressedMessage]);
 
   if(loading)
     return(
         <LoadingScreen/>
     )
   return (
-    <View style={styles.mainContainer}> 
-        
-        <View style={styles.messagesContainer}>
-           <GiftedChat
+    <ActionSheetProvider>
+        <View style={styles.mainContainer}> 
+            
+            <View style={styles.messagesContainer}>
+            <GiftedChat
                 style={styles.messagesContainer}
                 messages={giftedMessages}
                 user={{ _id: currentUserId }}
@@ -90,62 +110,84 @@ export default function ChatScreen({route, navigation}) {
                 scrollToBottom={false} 
 
                 renderAvatar={(props) => {
-                    return <Avatar {...props} rounded size={40} />;
+                    return (
+                         <Avatar
+                            {...props}
+                            source={
+                                secondUserAvatar === 'defaultImage'
+                                ? ('../assets/profilePicture.png')  
+                                : { uri: secondUserAvatar }              
+                            }
+                            rounded
+                            size={40}
+    />
+                    )
                 }}
 
-                renderBubble={(props) => (
-                    <Bubble
-                        {...props}
-                        wrapperStyle={{
-                            right: {
-                                backgroundColor: colors.purple400,
-                                paddingHorizontal: 5
-                            },
-                            left: {
-                                backgroundColor: '#F1F0F0',
-                                paddingHorizontal: 5
-                            },
-                        }}
-                        textStyle={{
-                            right: {
-                                fontSize: 16,
-                                fontWeight: 400,
-                                color: '#fff',
-                            },
-                            left: {
-                                fontSize: 16,
-                                fontWeight: 400,
-                                color: '#000',
-                            },
-                            
-                        }}
-                    
-                    />
-                )}
-            />
-        </View>
+                renderBubble={(props) => {
+                    return (
+                        <Bubble
+                            {...props}
+                            onLongPress={(context) => handleLongPressMessage(context, props.currentMessage)}
 
-        <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : null}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 150 : 0}
-            style={styles.composeContainer}
-        >  
-            <View style={styles.inputWrapper}>
-                <TextInput 
-                    style={styles.inputField}
-                    placeholder='Type a message ...'
-                    value={inputText}
-                    onChangeText={setInputText}
+                            wrapperStyle={{ 
+                                right: {
+                                    backgroundColor: colors.purple500,
+                                    paddingHorizontal: 5,
+                                },
+                                left: {
+                                    backgroundColor: '#F1F0F0',
+                                    paddingHorizontal: 5
+                                },
+                            }}
+                            textStyle={{
+                                right: {
+                                    fontSize: 16,
+                                    fontWeight: 400,
+                                    color: '#fff',
+                                },
+                                left: {
+                                    fontSize: 16,
+                                    fontWeight: 400,
+                                    color: '#000',
+                                },
+                            }}
+                        />
+                    )
+                }}
+            />
+
+            <MessageModal
+                showModal={showModal}
+                setShowModal={setShowModal}
+                selectedMessage={pressedMessage}
+                handleDeleteMessage={handleDeleteMessage}
                 />
-                <Pressable 
-                    onPress={handleSend}
-                >
-                    <MaterialIcons name="send" color={colors.purple500} size={24} />
-                </Pressable>
 
             </View>
-        </KeyboardAvoidingView>
-    </View>
+
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : null}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 150 : 0}
+                style={styles.composeContainer}
+            >  
+                <View style={styles.inputWrapper}>
+                    <TextInput 
+                        style={styles.inputField}
+                        placeholder='Type a message ...'
+                        value={inputText}
+                        onChangeText={setInputText}
+                    />
+                    <Pressable 
+                        onPress={handleSend}
+                    >
+                        <MaterialIcons name="send" color={colors.purple500} size={24} />
+                    </Pressable>
+
+                </View>
+            </KeyboardAvoidingView>
+        </View>
+    </ActionSheetProvider>
   );
 }
 
